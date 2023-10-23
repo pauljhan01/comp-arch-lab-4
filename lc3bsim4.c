@@ -546,7 +546,8 @@ void initialize(char *argv[], int num_prog_files) {
     CURRENT_LATCHES.STATE_NUMBER = INITIAL_STATE_NUMBER;
     memcpy(CURRENT_LATCHES.MICROINSTRUCTION, CONTROL_STORE[INITIAL_STATE_NUMBER], sizeof(int)*CONTROL_STORE_BITS);
     CURRENT_LATCHES.SSP = 0x3000; /* Initial value of system stack pointer */
-    CURRENT_LATCHES.PSR = 0x8000;
+    CURRENT_LATCHES.USP = 0xFE00; /* Initial value of user stack pointer*/
+    CURRENT_LATCHES.PSR = 0x8002; /* Initial value of PSR in user mode and NZP = 010*/
 
     NEXT_LATCHES = CURRENT_LATCHES;
 
@@ -709,26 +710,12 @@ void cycle_memory() {
         NEXT_LATCHES.READY = FALSE;
     }
     else if(GetMIO_EN(CURRENT_LATCHES.MICROINSTRUCTION) == TRUE){
-        if((CURRENT_LATCHES.PSR & 0x8000)==0x8000 && CURRENT_LATCHES.MAR < 0x2FFF){
+        //unaligned access exception
+        if((CURRENT_LATCHES.MAR & 0x01) == 0x01 && GetDATA_SIZE(CURRENT_LATCHES.MICROINSTRUCTION)==1){
             exception_or_interrupt_skip = TRUE;
-            NEXT_LATCHES.STATE_NUMBER = 36;
-            copy_microinstruction();
-            NEXT_LATCHES.EXCV = 0x02;
-            return;
-        }
-        if((CURRENT_LATCHES.MAR & 0x0001)==0x0001 && GetDATA_SIZE(CURRENT_LATCHES.MICROINSTRUCTION)==1){
-            exception_or_interrupt_skip = TRUE;
-            NEXT_LATCHES.STATE_NUMBER = 36;
-            copy_microinstruction();
             NEXT_LATCHES.EXCV = 0x03;
-            return;
-        }
-        if((CURRENT_LATCHES.MAR & 0xF000)==0xA000 || (CURRENT_LATCHES.MAR & 0xF000)==0xB000){
-            exception_or_interrupt_skip = TRUE;
             NEXT_LATCHES.STATE_NUMBER = 36;
             copy_microinstruction();
-            NEXT_LATCHES.EXCV = 0x04;
-            return;
         }
         if(mem_cycle == 3){
             NEXT_LATCHES.READY = TRUE;
@@ -1062,12 +1049,30 @@ void drive_bus() {
         if(GetLD_MAR(CURRENT_LATCHES.MICROINSTRUCTION)==1){
             NEXT_LATCHES.MAR = Low16bits(BUS);
             load_signals[ldmar] = TRUE;
+            if(NEXT_LATCHES.INTV != 0){
+                exception_or_interrupt_skip = TRUE;
+                NEXT_LATCHES.STATE_NUMBER = 37;
+                copy_microinstruction();
+            }
+            if((NEXT_LATCHES.PSR & 0x8000)==0x8000 && NEXT_LATCHES.MAR < 0x3000){
+                exception_or_interrupt_skip = TRUE;
+                NEXT_LATCHES.EXCV = 0x02;
+                NEXT_LATCHES.STATE_NUMBER = 36;
+                copy_microinstruction();
+            }
         }
     }
     else if(GetGATE_MDR(CURRENT_LATCHES.MICROINSTRUCTION)==1){
         if(GetLD_IR(CURRENT_LATCHES.MICROINSTRUCTION)==1){
             NEXT_LATCHES.IR = Low16bits(BUS);
             load_signals[ldir] = TRUE;
+            //unknown opcode exception
+            if((NEXT_LATCHES.IR & 0xA000) == 0xA000 || (NEXT_LATCHES.IR & 0xB000) == 0xB000){
+                exception_or_interrupt_skip = TRUE;
+                NEXT_LATCHES.EXCV = 0x04;
+                NEXT_LATCHES.STATE_NUMBER = 36;
+                copy_microinstruction();
+            }
         }
         if(GetLD_PC(CURRENT_LATCHES.MICROINSTRUCTION)==1){
             NEXT_LATCHES.PC = Low16bits(BUS);
@@ -1088,6 +1093,13 @@ void drive_bus() {
         if(GetLD_MAR(CURRENT_LATCHES.MICROINSTRUCTION)==1){
             NEXT_LATCHES.MAR = Low16bits(BUS);
             load_signals[ldmar] = TRUE;
+            //protection exception
+            if((NEXT_LATCHES.PSR & 0x8000)==0x8000 && NEXT_LATCHES.MAR < 0x3000){
+                exception_or_interrupt_skip = TRUE;
+                NEXT_LATCHES.EXCV = 0x02;
+                NEXT_LATCHES.STATE_NUMBER = 36;
+                copy_microinstruction();
+            }
         }
         if(GetLD_REG(CURRENT_LATCHES.MICROINSTRUCTION)==1){
             if(GetDRMUX(CURRENT_LATCHES.MICROINSTRUCTION)==0){
@@ -1116,6 +1128,7 @@ void drive_bus() {
    */      
 void latch_datapath_values() {
     if(exception_or_interrupt_skip){
+        exception_or_interrupt_skip = FALSE;
         return;
     }
     if(GetPCMUX(CURRENT_LATCHES.MICROINSTRUCTION)==0b11){
@@ -1175,16 +1188,19 @@ void latch_datapath_values() {
             NEXT_LATCHES.Z = 1;
             NEXT_LATCHES.P = 0;
             NEXT_LATCHES.N = 0;
+            NEXT_LATCHES.PSR = (CURRENT_LATCHES.PSR & 0xFFF8) | 0x0002;
         }
         else if(((NEXT_LATCHES.REGS[reg_idx] & 0x00008000) >> 15) == 1){
             NEXT_LATCHES.Z = 0;
             NEXT_LATCHES.P = 0;
             NEXT_LATCHES.N = 1;
+            NEXT_LATCHES.PSR = (CURRENT_LATCHES.PSR & 0xFFF8) | 0x0004;
         }
         else if((NEXT_LATCHES.REGS[reg_idx] & 0x00008000) == 0){
             NEXT_LATCHES.Z = 0;
             NEXT_LATCHES.P = 1;
             NEXT_LATCHES.N = 0;
+            NEXT_LATCHES.PSR = (CURRENT_LATCHES.PSR & 0xFFF8) | 0x0001;
         }
     }
 }
