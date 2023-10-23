@@ -61,6 +61,7 @@ enum CS_BITS {
     LD_PC,
     LD_VECTOR,
     LD_PSR,
+    LD_SP,
     GATE_PC,
     GATE_MDR,
     GATE_ALU,
@@ -105,6 +106,7 @@ int GetLD_CC(int *x)         { return(x[LD_CC]); }
 int GetLD_PC(int *x)         { return(x[LD_PC]); }
 int GetLD_VECTOR(int *x)     { return(x[LD_VECTOR]);}
 int GetLD_PSR(int *x)        { return(x[LD_PSR]);}
+int GetLD_SP(int *x)         { return(x[LD_SP]);}
 int GetGATE_PC(int *x)       { return(x[GATE_PC]); }
 int GetGATE_MDR(int *x)      { return(x[GATE_MDR]); }
 int GetGATE_ALU(int *x)      { return(x[GATE_ALU]); }
@@ -773,13 +775,34 @@ void eval_bus_drivers() {
         return;
     }
     if(GetGATE_VECTOR(CURRENT_LATCHES.MICROINSTRUCTION)==0){
-
+        if(CURRENT_LATCHES.EXCV == 0){
+            BUS = Low16bits(0x0200 | CURRENT_LATCHES.INTV);
+        }else if(CURRENT_LATCHES.INTV == 0){
+            BUS = Low16bits(0x0200 | CURRENT_LATCHES.EXCV);
+        }
     }
     if(GetGATE_PSR(CURRENT_LATCHES.MICROINSTRUCTION)==0){
-
+        if(GetCLR_PSR(CURRENT_LATCHES.MICROINSTRUCTION)){
+            NEXT_LATCHES.PSR = NEXT_LATCHES.PSR & 0x7FFF;
+        }
+        if(GetLSHF1(CURRENT_LATCHES.MICROINSTRUCTION)){
+            NEXT_LATCHES.EXCV = CURRENT_LATCHES.EXCV << 1;
+            NEXT_LATCHES.INTV = CURRENT_LATCHES.INTV << 1;
+        }
+        BUS = Low16bits(CURRENT_LATCHES.PSR);
     }
     if(GetGATE_SP(CURRENT_LATCHES.MICROINSTRUCTION)==0){
-
+        if(GetLD_SP(CURRENT_LATCHES.MICROINSTRUCTION)){
+            //SP - 2
+            if(GetSP_MUX(CURRENT_LATCHES.MICROINSTRUCTION)){
+                NEXT_LATCHES.REGS[6] = CURRENT_LATCHES.REGS[6] - 2;
+                BUS = NEXT_LATCHES.REGS[6];
+            }
+            //SP + 2
+            if(GetSP_MUX(CURRENT_LATCHES.MICROINSTRUCTION)==0){
+                NEXT_LATCHES.REGS[6] = CURRENT_LATCHES.REGS[6] + 2;
+            }
+        }
     }
     if(GetGATE_MARMUX(CURRENT_LATCHES.MICROINSTRUCTION)){
         if(GetMARMUX(CURRENT_LATCHES.MICROINSTRUCTION)==0){
@@ -1010,6 +1033,21 @@ void drive_bus() {
     if(exception_or_interrupt_skip){
         return;
     }
+    if(GetGATE_VECTOR(CURRENT_LATCHES.MICROINSTRUCTION)==1){
+        if(GetLD_MAR(CURRENT_LATCHES.MICROINSTRUCTION)){
+            NEXT_LATCHES.MAR = Low16bits(BUS);
+        }
+    }
+    if(GetGATE_PSR(CURRENT_LATCHES.MICROINSTRUCTION)==1){
+        if(GetLD_MDR(CURRENT_LATCHES.MICROINSTRUCTION)==1){
+            NEXT_LATCHES.MDR = Low16bits(BUS);
+        }
+    }
+    if(GetGATE_SP(CURRENT_LATCHES.MICROINSTRUCTION)==1){
+        if(GetLD_MAR(CURRENT_LATCHES.MICROINSTRUCTION)==1){
+            NEXT_LATCHES.MAR = Low16bits(BUS);
+        }
+    }
     if(GetGATE_ALU(CURRENT_LATCHES.MICROINSTRUCTION)==1){
         if(GetLD_REG(CURRENT_LATCHES.MICROINSTRUCTION)==1){
             if(GetDRMUX(CURRENT_LATCHES.MICROINSTRUCTION)==0){
@@ -1142,7 +1180,7 @@ void latch_datapath_values() {
             int reg_idx = (CURRENT_LATCHES.IR & 0x01C0) >> 6;
             NEXT_LATCHES.PC = CURRENT_LATCHES.REGS[reg_idx];
         }
-        if(GetPCMUX(CURRENT_LATCHES.MICROINSTRUCTION)==2){
+        if(GetPCMUX(CURRENT_LATCHES.MICROINSTRUCTION)==2){ 
             int addr2 = 0;
             int addr1 = 0;
 
