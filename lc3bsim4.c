@@ -716,6 +716,7 @@ void cycle_memory() {
     else if(GetMIO_EN(CURRENT_LATCHES.MICROINSTRUCTION) == TRUE){
         //unaligned access exception
         if((CURRENT_LATCHES.MAR & 0x01) == 0x01 && GetDATA_SIZE(CURRENT_LATCHES.MICROINSTRUCTION)==1){
+            exceptions = TRUE;
             exception_or_interrupt_skip = TRUE;
             NEXT_LATCHES.EXCV = 0x03;
             NEXT_LATCHES.STATE_NUMBER = 36;
@@ -813,8 +814,9 @@ void eval_bus_drivers() {
                 CURRENT_LATCHES.REGS[6] += 2;
                 BUS = Low16bits(NEXT_LATCHES.REGS[6]);
             }
+        }else{
+            BUS = Low16bits(CURRENT_LATCHES.REGS[6]);
         }
-        BUS = Low16bits(CURRENT_LATCHES.REGS[6]);
     }
     if(GetGATE_MARMUX(CURRENT_LATCHES.MICROINSTRUCTION)){
         if(GetMARMUX(CURRENT_LATCHES.MICROINSTRUCTION)==0){
@@ -1100,17 +1102,22 @@ void drive_bus() {
             NEXT_LATCHES.MAR = Low16bits(BUS);
             load_signals[ldmar] = TRUE;
             if(NEXT_LATCHES.INTV!=0){
+                interrupts = TRUE;
                 exception_or_interrupt_skip = TRUE;
                 NEXT_LATCHES.STATE_NUMBER = 37;
                 copy_microinstruction();
             }
             //protection exception
             if((NEXT_LATCHES.PSR & 0x8000)==0x8000 && NEXT_LATCHES.MAR < 0x3000){
+                exceptions = TRUE;
                 exception_or_interrupt_skip = TRUE;
                 NEXT_LATCHES.EXCV = 0x02;
                 NEXT_LATCHES.STATE_NUMBER = 36;
                 copy_microinstruction();
             }
+        }
+        if(GetLD_MDR(CURRENT_LATCHES.MICROINSTRUCTION)){
+            NEXT_LATCHES.MDR = Low16bits(BUS);
         }
     }
     else if(GetGATE_MDR(CURRENT_LATCHES.MICROINSTRUCTION)==1){
@@ -1127,6 +1134,7 @@ void drive_bus() {
             load_signals[ldir] = TRUE;
             //unknown opcode exception
             if((NEXT_LATCHES.IR & 0xF000) == 0xA000 || (NEXT_LATCHES.IR & 0xF000) == 0xB000){
+                exceptions = TRUE;
                 exception_or_interrupt_skip = TRUE;
                 NEXT_LATCHES.EXCV = 0x04;
                 NEXT_LATCHES.STATE_NUMBER = 36;
