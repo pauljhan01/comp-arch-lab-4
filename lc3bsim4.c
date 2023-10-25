@@ -228,7 +228,7 @@ void help() {
 /***************************************************************/
 void cycle() {                                                
     if(CYCLE_COUNT == 300){
-        CURRENT_LATCHES.INTV = 0x01;
+        NEXT_LATCHES.INTV = 0x01;
     }
   eval_micro_sequencer();   
   cycle_memory();
@@ -493,7 +493,7 @@ void load_program(char *program_filename) {
     FILE * prog;
     int ii, word, program_base;
 
-    /* Open program file. */
+    /* Open. */
     prog = fopen(program_filename, "r");
     if (prog == NULL) {
 	printf("Error: Can't open program file %s\n", program_filename);
@@ -607,6 +607,8 @@ int main(int argc, char *argv[]) {
 
    Begin your code here 	  			       */
 /***************************************************************/
+int interrupts = FALSE;
+int exceptions = FALSE;
 int exception_or_interrupt_skip = FALSE;
 #define READ 0
 #define WRITE 1
@@ -774,14 +776,16 @@ void eval_bus_drivers() {
     if(exception_or_interrupt_skip){
         return;
     }
-    if(GetGATE_VECTOR(CURRENT_LATCHES.MICROINSTRUCTION)==0){
-        if(CURRENT_LATCHES.EXCV == 0){
+    if(GetGATE_VECTOR(CURRENT_LATCHES.MICROINSTRUCTION)){
+        if(interrupts){
             BUS = Low16bits(0x0200 | CURRENT_LATCHES.INTV);
-        }else if(CURRENT_LATCHES.INTV == 0){
+            interrupts = FALSE;
+        }else if(exceptions){
             BUS = Low16bits(0x0200 | CURRENT_LATCHES.EXCV);
+            exceptions = FALSE;
         }
     }
-    if(GetGATE_PSR(CURRENT_LATCHES.MICROINSTRUCTION)==0){
+    if(GetGATE_PSR(CURRENT_LATCHES.MICROINSTRUCTION)){
         if(GetCLR_PSR(CURRENT_LATCHES.MICROINSTRUCTION)){
             NEXT_LATCHES.PSR = NEXT_LATCHES.PSR & 0x7FFF;
         }
@@ -791,7 +795,7 @@ void eval_bus_drivers() {
         }
         BUS = Low16bits(CURRENT_LATCHES.PSR);
     }
-    if(GetGATE_SP(CURRENT_LATCHES.MICROINSTRUCTION)==0){
+    if(GetGATE_SP(CURRENT_LATCHES.MICROINSTRUCTION)){
         if(GetLD_SP(CURRENT_LATCHES.MICROINSTRUCTION)){
             //SP - 2
             if(GetSP_MUX(CURRENT_LATCHES.MICROINSTRUCTION)){
@@ -1087,11 +1091,12 @@ void drive_bus() {
         if(GetLD_MAR(CURRENT_LATCHES.MICROINSTRUCTION)==1){
             NEXT_LATCHES.MAR = Low16bits(BUS);
             load_signals[ldmar] = TRUE;
-            if(NEXT_LATCHES.INTV != 0){
+            if(NEXT_LATCHES.INTV!=0){
                 exception_or_interrupt_skip = TRUE;
                 NEXT_LATCHES.STATE_NUMBER = 37;
                 copy_microinstruction();
             }
+            //protection exception
             if((NEXT_LATCHES.PSR & 0x8000)==0x8000 && NEXT_LATCHES.MAR < 0x3000){
                 exception_or_interrupt_skip = TRUE;
                 NEXT_LATCHES.EXCV = 0x02;
@@ -1105,7 +1110,7 @@ void drive_bus() {
             NEXT_LATCHES.IR = Low16bits(BUS);
             load_signals[ldir] = TRUE;
             //unknown opcode exception
-            if((NEXT_LATCHES.IR & 0xA000) == 0xA000 || (NEXT_LATCHES.IR & 0xB000) == 0xB000){
+            if((NEXT_LATCHES.IR & 0xF000) == 0xA000 || (NEXT_LATCHES.IR & 0xF000) == 0xB000){
                 exception_or_interrupt_skip = TRUE;
                 NEXT_LATCHES.EXCV = 0x04;
                 NEXT_LATCHES.STATE_NUMBER = 36;
