@@ -1,0 +1,49 @@
+
+Current register/bus values :
+-------------------------------------
+Cycle Count  : 299
+PC           : 0x301a
+IR           : 0x127f
+STATE_NUMBER : 0x0021
+
+BUS          : 0x3018
+MDR          : 0x03fb
+MAR          : 0x3018
+CCs: N = 0  Z = 0  P = 1
+Registers:
+0: 0xc004
+1: 0x0010
+2: 0x0023
+3: 0x007f
+4: 0x0000
+5: 0x0000
+6: 0x0000
+7: 0x0000
+
+
+Memory content [0x4000..0x4001] :
+-------------------------------------
+ 0x4000 (16384) : 0x0001
+
+
+Current register/bus values :
+-------------------------------------
+Cycle Count  : 299
+PC           : 0x301a
+IR           : 0x127f
+STATE_NUMBER : 0x0021
+
+BUS          : 0x3018
+MDR          : 0x03fb
+MAR          : 0x3018
+CCs: N = 0  Z = 0  P = 1
+Registers:
+0: 0xc004
+1: 0x0010
+2: 0x0023
+3: 0x007f
+4: 0x0000
+5: 0x0000
+6: 0x0000
+7: 0x0000
+

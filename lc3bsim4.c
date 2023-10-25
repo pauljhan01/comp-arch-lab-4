@@ -642,7 +642,7 @@ int sign_extend(int immediate, int starting_bit){
 }
 void copy_microinstruction();
 void copy_microinstruction(){
-    for(int i = 0; i < 35; i++){
+    for(int i = 0; i < CONTROL_STORE_BITS; i++){
         NEXT_LATCHES.MICROINSTRUCTION[i] = CONTROL_STORE[NEXT_LATCHES.STATE_NUMBER][i];
     }
 }
@@ -787,6 +787,10 @@ void eval_bus_drivers() {
     }
     if(GetGATE_PSR(CURRENT_LATCHES.MICROINSTRUCTION)){
         if(GetCLR_PSR(CURRENT_LATCHES.MICROINSTRUCTION)){
+            if((CURRENT_LATCHES.PSR & 0x8000) == 0x8000){
+                NEXT_LATCHES.STATE_NUMBER = 39;
+                copy_microinstruction();
+            }
             NEXT_LATCHES.PSR = NEXT_LATCHES.PSR & 0x7FFF;
         }
         if(GetLSHF1(CURRENT_LATCHES.MICROINSTRUCTION)){
@@ -800,13 +804,17 @@ void eval_bus_drivers() {
             //SP - 2
             if(GetSP_MUX(CURRENT_LATCHES.MICROINSTRUCTION)){
                 NEXT_LATCHES.REGS[6] = CURRENT_LATCHES.REGS[6] - 2;
-                BUS = NEXT_LATCHES.REGS[6];
+                CURRENT_LATCHES.REGS[6] -= 2;
+                BUS = Low16bits(NEXT_LATCHES.REGS[6]);
             }
             //SP + 2
             if(GetSP_MUX(CURRENT_LATCHES.MICROINSTRUCTION)==0){
                 NEXT_LATCHES.REGS[6] = CURRENT_LATCHES.REGS[6] + 2;
+                CURRENT_LATCHES.REGS[6] += 2;
+                BUS = Low16bits(NEXT_LATCHES.REGS[6]);
             }
         }
+        BUS = Low16bits(CURRENT_LATCHES.REGS[6]);
     }
     if(GetGATE_MARMUX(CURRENT_LATCHES.MICROINSTRUCTION)){
         if(GetMARMUX(CURRENT_LATCHES.MICROINSTRUCTION)==0){
@@ -1106,6 +1114,14 @@ void drive_bus() {
         }
     }
     else if(GetGATE_MDR(CURRENT_LATCHES.MICROINSTRUCTION)==1){
+        if(GetLD_PSR(CURRENT_LATCHES.MICROINSTRUCTION)==1){
+            NEXT_LATCHES.PSR = Low16bits(BUS);
+            if((NEXT_LATCHES.PSR & 0x8000) == 0x8000){
+                //otherwise go to 18
+                NEXT_LATCHES.STATE_NUMBER = 52;
+                copy_microinstruction();
+            }
+        }
         if(GetLD_IR(CURRENT_LATCHES.MICROINSTRUCTION)==1){
             NEXT_LATCHES.IR = Low16bits(BUS);
             load_signals[ldir] = TRUE;
@@ -1173,6 +1189,14 @@ void latch_datapath_values() {
     if(exception_or_interrupt_skip){
         exception_or_interrupt_skip = FALSE;
         return;
+    }
+    if(GetSW_SSP(CURRENT_LATCHES.MICROINSTRUCTION)){
+        NEXT_LATCHES.USP = Low16bits(CURRENT_LATCHES.REGS[6]);
+        NEXT_LATCHES.REGS[6] = Low16bits(CURRENT_LATCHES.SSP);
+    }
+    if(GetSW_USP(CURRENT_LATCHES.MICROINSTRUCTION)){
+        NEXT_LATCHES.SSP = Low16bits(CURRENT_LATCHES.REGS[6]);
+        NEXT_LATCHES.REGS[6] = Low16bits(CURRENT_LATCHES.USP);
     }
     if(GetPCMUX(CURRENT_LATCHES.MICROINSTRUCTION)==0b11){
         NEXT_LATCHES.PC = CURRENT_LATCHES.PC - 2;
