@@ -1,5 +1,6 @@
 .ORIG x1200
-#Push R0 and R1 onto supervisor stack
+;Push R0 and R1 onto supervisor stack
+;Assumes R6 is already initialized as supervisor stack pointer
 ADD R6, R6 #-2
 STW R0, R6, #0
 ADD R6, R6, #-2
@@ -7,7 +8,8 @@ STW R1, R6, #0
 
 #Begin execution of ISR
 LEA R0, INCREMENT
-LDW R1, R0, #0
+LDW R0, R0, #0
+AND R1, R1, #0
 ADD R1, R1, #1
 STW R1, R0, #0
 
