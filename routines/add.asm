@@ -9,26 +9,20 @@ LDW R0, R0, #0 ;R0 = xC000
 LEA R1, Repetition
 LDW R1, R1, #0 ;R1 = #20
 
-;Sum 20 bytes beginning at xC014
-Store LDB R2, R0, #0 ;Load value at byte into R2
+;Sum 20 bytes beginning at xC000
+Repeat LDB R2, R0, #0 ;Load value at byte into R2
 ADD R3, R3, R2 ;Add loaded value with previous N values in R3
 ADD R0, R0, #1 ;Increment pointer by 1
 ADD R1, R1, #-1 ;Decrease counter by 1
-BRP Store ;Repeat if counter is still positive
+BRP Repeat ;Repeat if counter is still positive
 
 LEA R0, Complete
 LDW R0, R0, #0
 STW R3, R0, #0 ;Mem[xC014] = Sum of the 20 bytes
 
-;Causes protection exception
-LEA R0, Protection
-LDW R0, R0, #0
-STW R3, R0, #0 ;Mem[x0000] = Sum, causes protection exception
-
-;Causes unaligned exception
 LEA R0, Unaligned
 LDW R0, R0, #0
-STW R3, R0, #0 ;Mem[xC017] = Sum, causes unaligned access exception
+STW R3, R0, #0 
 
 Initial .FILL x4000
 Begin .FILL xC000

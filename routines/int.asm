@@ -9,7 +9,7 @@ STW R1, R6, #0
 ;Begin execution of ISR
 LEA R0, INCREMENT
 LDW R0, R0, #0
-AND R1, R1, #0
+LDW R1, R0, #0
 ADD R1, R1, #1
 STW R1, R0, #0
 
